@@ -191,7 +191,7 @@ public class Node
 				AcceptRequestMessage acceptRequest = new AcceptRequestMessage(proposal);
 				acceptRequest.setSender(locationData);
 				broadcast(acceptRequest);
-				// XXX: reProposer = new NodeReProposer(); // wait for AcceptResponseMessage
+				// XXX: reProposer = new NodeReProposer(); // wait for AcceptResponseMessage (is one needed?)
 			}
 		}
 		else if(m instanceof AcceptRequestMessage) // Acceptor
@@ -207,6 +207,8 @@ public class Node
 			// "accept" the proposal
 			minPsn = Math.max(requestedProposal.getPsn(), minPsn);
 			maxAcceptedProposal = requestedProposal;
+			
+			// XXX: notify Learners?
 			
 			updateStableStorage();
 		}
