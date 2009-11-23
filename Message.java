@@ -2,26 +2,26 @@ import java.io.Serializable;
 
 public abstract class Message implements Serializable
 {
-	protected String sender;
-	protected String reciever;
+	protected NodeLocationData sender;
+	protected NodeLocationData reciever;
 	
-	public String getSender()
+	public NodeLocationData getSender()
 	{
 		return sender;
 	}
 
-	public void setSender(Node sender)
+	public void setSender(NodeLocationData sender)
 	{
-		this.sender = sender.toString();
+		this.sender = sender;
 	}
 
-	public String getReciever()
+	public NodeLocationData getReciever()
 	{
 		return reciever;
 	}
-
-	public void setReciever(Node reciever)
+	
+	public void setReciever(NodeLocationData reciever)
 	{
-		this.reciever = reciever.toString();
+		this.reciever = reciever;
 	}
 }
