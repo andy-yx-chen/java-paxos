@@ -10,23 +10,28 @@ public class Main
 		Node n3 = new Node(3);
 		
 		// create node list
-		Set<Node> s = new HashSet<Node>();
-		s.add(n1);
-		s.add(n2);
-		s.add(n3);
+		Set<Node> nodes = new HashSet<Node>();
+		nodes.add(n1);
+		nodes.add(n2);
+		nodes.add(n3);
 		
-		for(Node n : s)
+		// create node location list
+		Set<NodeLocationData> nodeLocations = new HashSet<NodeLocationData>();
+		for(Node node : nodes)
+			nodeLocations.add(node.getLocationData());
+		
+		for(Node node : nodes)
 		{
 			// give node list to all nodes (statically)
-			n.setNodeList(s);
+			node.setNodeList(nodeLocations);
 			
 			// clear stable storage
-			n.clearStableStorage();
+			node.clearStableStorage();
 		}
 		
 		// start all nodes
-		for(Node n : s)
-			n.start();
+		for(Node node : nodes)
+			node.start();
 		
 		// propose something
 		n1.propose("Test");
