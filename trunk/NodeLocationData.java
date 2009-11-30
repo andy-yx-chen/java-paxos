@@ -5,13 +5,30 @@ public class NodeLocationData implements Serializable
 {
 	private String host;
 	private int port;
-	private String num; // the "number" of the node. it's the seed given to the constructor. only used for debug
+	private int num;
+	private boolean isLeader;
 	
 	public NodeLocationData(String host, int port, int num)
 	{
 		this.host = host;
 		this.port = port;
-		this.num = ((Integer)num).toString();
+		this.num = num;
+		this.isLeader = false;
+	}
+	
+	public void becomeLeader()
+	{
+		isLeader = true;
+	}
+	
+	public void becomeNonLeader()
+	{
+		isLeader = false;
+	}
+	
+	public boolean isLeader()
+	{
+		return isLeader;
 	}
 	
 	public String getHost()
@@ -24,8 +41,13 @@ public class NodeLocationData implements Serializable
 		return port;
 	}
 	
-	public String toString()
+	public int getNum()
 	{
 		return num;
+	}
+	
+	public String toString()
+	{
+		return ((Integer)num).toString();
 	}
 }
