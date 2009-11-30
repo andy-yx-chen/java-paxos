@@ -31,6 +31,11 @@ public class Node
 	private int minPsn;
 	private Proposal maxAcceptedProposal;
 	
+	// Learner Variables
+	private int numAcceptNotifications;
+	private boolean hasLearned;
+	private ArrayList<String> chosenValues = new ArrayList<String>();
+	
 	public Node(String host, int port, int psnSeed)
 	{
 		this.psn = psnSeed; // when used properly, this ensures unique PSNs.
@@ -118,6 +123,7 @@ public class Node
 		catch(SocketTimeoutException e)
 		{
 			// XXX: Implement what to do when Node crash detected.
+			// if node was leader, elect new one, else, no nothing
 		}
 		catch(IOException e)
 		{
@@ -187,11 +193,13 @@ public class Node
 			{
 				hasProposed = true;
 				if(reProposer != null)
+				{
 					reProposer.kill();
+					reProposer = null;
+				}
 				AcceptRequestMessage acceptRequest = new AcceptRequestMessage(proposal);
 				acceptRequest.setSender(locationData);
 				broadcast(acceptRequest);
-				// XXX: reProposer = new NodeReProposer(); // wait for AcceptResponseMessage (is one needed?)
 			}
 		}
 		else if(m instanceof AcceptRequestMessage) // Acceptor
@@ -207,10 +215,35 @@ public class Node
 			// "accept" the proposal
 			minPsn = Math.max(requestedProposal.getPsn(), minPsn);
 			maxAcceptedProposal = requestedProposal;
+			writeDebug("Accepted: " + requestedProposal.toString());
 			
-			// XXX: notify Learners?
+			// Notify Learners
+			AcceptNotificationMessage acceptNotification = new AcceptNotificationMessage(requestedProposal);
+			acceptNotification.setSender(locationData);
+			broadcast(acceptNotification);
 			
 			updateStableStorage();
+		}
+		else if(m instanceof AcceptNotificationMessage) // Learner
+		{
+			AcceptNotificationMessage acceptNotification = (AcceptNotificationMessage)m;
+			Proposal acceptedProposal = acceptNotification.getProposal();
+			
+			writeDebug("Got Accept Notification from " + acceptNotification.getSender() + ": " + (acceptedProposal == null ? "None" : acceptedProposal.toString()));
+
+			if(hasLearned) // ignore if already heard from a majority
+				return;
+			
+			numAcceptNotifications++;
+			if(numAcceptNotifications > (nodes.size() / 2)) // has heard from majority?
+			{
+				hasLearned = true;
+				
+				chosenValues.add(acceptedProposal.getValue());
+				writeDebug("Learned: " + acceptedProposal.getValue());
+				
+				updateStableStorage();
+			}
 		}
 		else
 			writeDebug("Unknown Message recieved", true);

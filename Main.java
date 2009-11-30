@@ -35,5 +35,7 @@ public class Main
 		
 		// propose something
 		n1.propose("Test");
+		
+		// XXX: Make all test cases
 	}
 }
