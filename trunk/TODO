@@ -1,0 +1,7 @@
+ - Leader election
+ 	- new leader = (current leader # + 1) % #nodes
+ - Have "real" user input to consensus
+ - implement multiple instances of consensus
+ 	- implement CSNs for EVERYTHING
+ - Make all test cases
+ - Add more state to Stable Storage
