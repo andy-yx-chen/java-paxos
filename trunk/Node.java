@@ -23,15 +23,15 @@ public class Node
 	private NodeHeartbeat heartbeat;
 	
 	// Proposer Variables
+	private int currentCsn;
 	private int psn;
-	private Proposal proposal;
-	private int numAcceptRequests;
-	private boolean hasProposed;
-	private NodeReProposer reProposer;
+	private Map<Integer, Integer> numAcceptRequests;
+	private Map<Integer, Proposal> proposals;
+	private Map<Integer, NodeReProposer> reProposers;
 	
 	// Acceptor Variables
-	private int minPsn;
-	private Proposal maxAcceptedProposal;
+	private Map<Integer, Integer> minPsns;
+	private Map<Integer, Proposal> maxAcceptedProposals;
 	
 	// Learner Variables
 	private int numAcceptNotifications;
@@ -41,8 +41,13 @@ public class Node
 	public Node(String host, int port, int psnSeed)
 	{
 		this.psn = psnSeed; // when used properly, this ensures unique PSNs.
-		this.minPsn = -1; // haven't accepted anything yet
+		this.currentCsn = 0;
 		this.locationData = new NodeLocationData(host, port, psnSeed);
+		this.numAcceptRequests = new HashMap<Integer, Integer>();
+		this.proposals = new HashMap<Integer, Proposal>();
+		this.reProposers = new HashMap<Integer, NodeReProposer>();
+		this.minPsns = new HashMap<Integer, Integer>();
+		this.maxAcceptedProposals = new HashMap<Integer, Proposal>();
 	}
 	
 	public Node(int psnSeed)
@@ -80,6 +85,11 @@ public class Node
 		writeDebug("Electing new leader: " + newNum);
 	}
 	
+	public synchronized ArrayList<String> getValues()
+	{
+		return chosenValues;
+	}
+	
 	public synchronized void start()
 	{
 		recoverStableStorage();
@@ -108,14 +118,19 @@ public class Node
 	
 	public void propose(String value)
 	{
-		if(reProposer != null)
-			reProposer.kill();
-		proposal = new Proposal(psn, value);
-		numAcceptRequests = 0;
-		hasProposed = false;
-		broadcast(new PrepareRequestMessage(psn));
+		propose(value, currentCsn++);
+	}
+	
+	public void propose(String value, int csn)
+	{
+		if(reProposers.containsKey(csn))
+			reProposers.remove(csn).kill();
+		numAcceptRequests.put(csn, 0);
+		Proposal proposal = new Proposal(csn, psn, value);
+		reProposers.put(csn, new NodeReProposer(proposal));
+		proposals.put(csn, proposal);
+		broadcast(new PrepareRequestMessage(csn, psn));
 		psn += nodes.size();
-		reProposer = new NodeReProposer();
 	}
 	
 	private void broadcast(Message m)
@@ -186,14 +201,17 @@ public class Node
 		else if(m instanceof PrepareRequestMessage) // Acceptor
 		{
 			PrepareRequestMessage prepareRequest = (PrepareRequestMessage)m;
+			int csn = prepareRequest.getCsn();
+			int psn = prepareRequest.getPsn();
 			
-			writeDebug("Got Prepare Request from " + prepareRequest.getSender() + ": " + prepareRequest.getPsn());
+			writeDebug("Got Prepare Request from " + prepareRequest.getSender() + ": (" + csn + ", "+ psn + ")");
 
 			// new minPsn
-			minPsn = Math.max(prepareRequest.getPsn(), minPsn);
+			if(!minPsns.containsKey(csn) || minPsns.get(csn) < psn)
+				minPsns.put(csn , psn);
 			
 			// respond
-			PrepareResponseMessage prepareResponse = new PrepareResponseMessage(maxAcceptedProposal, minPsn);
+			PrepareResponseMessage prepareResponse = new PrepareResponseMessage(csn, minPsns.get(csn), maxAcceptedProposals.get(csn));
 			prepareResponse.setSender(locationData);
 			unicast(prepareRequest.getSender(), prepareResponse);
 			
@@ -203,10 +221,13 @@ public class Node
 		{
 			PrepareResponseMessage prepareResponse = (PrepareResponseMessage)m;
 			Proposal acceptedProposal = prepareResponse.getProposal();
+			int csn = prepareResponse.getCsn();
+			int minPsn = prepareResponse.getMinPsn();
+			Proposal proposal = proposals.get(csn);
 			
-			writeDebug("Got Prepare Response from " + prepareResponse.getSender() + ": " + (acceptedProposal == null ? "None" : acceptedProposal.toString()) + ", " + prepareResponse.getMinPsn());
+			writeDebug("Got Prepare Response from " + prepareResponse.getSender() + ": " + csn + ", " + minPsn + ", " + (acceptedProposal == null ? "None" : acceptedProposal.toString()));
 
-			if(hasProposed) // ignore if already heard from a majority
+			if(!numAcceptRequests.containsKey(csn)) // ignore if already heard from a majority
 				return;
 						
 			// if acceptors already accepted something higher, use it instead
@@ -214,41 +235,44 @@ public class Node
 				proposal = acceptedProposal;
 			
 			// if acceptors already promised something higher, use higher psn
-			if(prepareResponse.getMinPsn() > proposal.getPsn())
+			if(minPsn > proposal.getPsn())
 			{
 				while(psn < prepareResponse.getMinPsn())
 					psn += nodes.size();
-				propose(proposal.getValue());
+				propose(proposal.getValue(), proposal.getCsn());
 				return;
 			}
 			
-			numAcceptRequests++;
-			if(numAcceptRequests > (nodes.size() / 2)) // has heard from majority?
+			int n = numAcceptRequests.get(csn);
+			n++;
+			if(n > (nodes.size() / 2)) // has heard from majority?
 			{
-				hasProposed = true;
-				if(reProposer != null)
-				{
-					reProposer.kill();
-					reProposer = null;
-				}
+				numAcceptRequests.remove(csn);
+				if(reProposers.containsKey(csn))
+					reProposers.remove(csn).kill();
 				AcceptRequestMessage acceptRequest = new AcceptRequestMessage(proposal);
 				acceptRequest.setSender(locationData);
 				broadcast(acceptRequest);
 			}
+			else
+				numAcceptRequests.put(csn, n);
 		}
 		else if(m instanceof AcceptRequestMessage) // Acceptor
 		{
 			AcceptRequestMessage acceptRequest = (AcceptRequestMessage)m;
 			Proposal requestedProposal = acceptRequest.getProposal();
+			int csn = requestedProposal.getCsn();
+			int psn = requestedProposal.getPsn();
 
 			writeDebug("Got Accept Request from " + acceptRequest.getSender() + ": " + requestedProposal.toString());
 			
-			if(requestedProposal.getPsn() < minPsn)
+			if(psn < minPsns.get(csn))
 				return; // ignore
 			
 			// "accept" the proposal
-			minPsn = Math.max(requestedProposal.getPsn(), minPsn);
-			maxAcceptedProposal = requestedProposal;
+			if(psn > minPsns.get(csn))
+				minPsns.put(csn, psn);
+			maxAcceptedProposals.put(csn, requestedProposal);
 			writeDebug("Accepted: " + requestedProposal.toString());
 			
 			// Notify Learners
@@ -273,8 +297,8 @@ public class Node
 			{
 				hasLearned = true;
 				
-				chosenValues.add(acceptedProposal.getValue());
-				writeDebug("Learned: " + acceptedProposal.getValue());
+				chosenValues.set(acceptedProposal.getCsn(), acceptedProposal.getValue());
+				writeDebug("Learned: " + acceptedProposal.getCsn() + ", " + acceptedProposal.getValue());
 				
 				updateStableStorage();
 			}
@@ -340,8 +364,8 @@ public class Node
 			}
 			in = new ObjectInputStream(new FileInputStream(f));
 			NodeStableStorage stableStorage = (NodeStableStorage)in.readObject();
-			minPsn = stableStorage.minPsn;
-			maxAcceptedProposal = stableStorage.maxAcceptedProposal;
+			minPsns = stableStorage.minPsns;
+			maxAcceptedProposals = stableStorage.maxAcceptedProposals;
 		}
 		catch (IOException e)
 		{
@@ -366,8 +390,8 @@ public class Node
 	private synchronized void updateStableStorage()
 	{
 		NodeStableStorage stableStorage = new NodeStableStorage();
-		stableStorage.minPsn = minPsn;
-		stableStorage.maxAcceptedProposal = maxAcceptedProposal;
+		stableStorage.minPsns = minPsns;
+		stableStorage.maxAcceptedProposals = maxAcceptedProposals;
 		
 		ObjectOutputStream out = null;
 		try
@@ -487,10 +511,12 @@ public class Node
 	{
 		private boolean isRunning;
 		private long expireTime;
+		private Proposal proposal;
 		
-		public NodeReProposer()
+		public NodeReProposer(Proposal proposal)
 		{
-			isRunning = true;
+			this.isRunning = true;
+			this.proposal = proposal;
 		}
 		
 		public void run()
@@ -500,7 +526,7 @@ public class Node
 			{
 				if(expireTime < System.currentTimeMillis())
 				{
-					propose(proposal.getValue());
+					propose(proposal.getValue(), proposal.getCsn());
 					kill();
 				}
 				yield(); // so the while loop doesn't spin too much

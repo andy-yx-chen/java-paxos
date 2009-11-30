@@ -1,5 +1,6 @@
- - implement multiple instances of consensus
- 	- implement CSNs for EVERYTHING
  - Make all test cases
- - Add more state to Stable Storage?
+ - Add more state to Stable Storage
+ 	- TEST TEST TEST!
  - Add ability to add a list of things to propose
+ 	- propose buffer?
+ - Need lots of testing because of the CSN stuff

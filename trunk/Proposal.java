@@ -2,13 +2,20 @@ import java.io.Serializable;
 
 public class Proposal implements Serializable
 {
+	private int csn;
 	private int psn;
 	private String value;
 	
-	public Proposal(int psn, String value)
+	public Proposal(int csn, int psn, String value)
 	{
+		this.csn = csn;
 		this.psn = psn;
 		this.value = value;
+	}
+	
+	public int getCsn()
+	{
+		return csn;
 	}
 	
 	public int getPsn()
@@ -23,6 +30,6 @@ public class Proposal implements Serializable
 	
 	public String toString()
 	{
-		return "{" + psn + ", " + value + "}";
+		return "{" + csn + ", " + psn + ", " + value + "}";
 	}
 }
