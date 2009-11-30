@@ -42,6 +42,14 @@ public class Main
 			
 			else if(cmd.equalsIgnoreCase("clear"))
 				clearStableStorage();
+
+			else if(cmd.equalsIgnoreCase("print"))
+			{
+				if(arg == null)
+					printAll();
+				else
+					print(Integer.parseInt(arg));
+			}
 			
 			else if(cmd.equalsIgnoreCase("propose"))
 				propose(arg);
@@ -100,6 +108,18 @@ public class Main
 			}
 	}
 	
+	private static void stopAll()
+	{
+		writeDebug("Stopping all nodes...");
+
+		for(Node node : nodes)
+			node.stop();
+		nodes.clear();
+		nodeLocations.clear();
+
+		writeDebug("All nodes stopped");
+	}
+	
 	private static void stop(int n)
 	{
 		writeDebug("Stopping node " + n);
@@ -138,16 +158,27 @@ public class Main
 		writeDebug("Stable Storage Cleared");
 	}
 	
-	private static void stopAll()
+	private static void printAll()
 	{
-		writeDebug("Stopping all nodes...");
-
 		for(Node node : nodes)
-			node.stop();
-		nodes.clear();
-		nodeLocations.clear();
+			print(node.getLocationData().getNum());
+	}
+	
+	private static void print(int n)
+	{
+		for(Node node : nodes)
+			if(node.getLocationData().getNum() == n)
+			{
 
-		writeDebug("All nodes stopped");
+				ArrayList<String> list = node.getValues();
+				
+				String m = "List of values learned by " + node.getLocationData().getNum() + ": ";
+				for(String s : list)
+					m += "\n\t" + s;					
+
+				writeDebug("\n" + m + "\n");				
+				break;
+			}
 	}
 	
 	private static void exit()

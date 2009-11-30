@@ -1,8 +1,10 @@
 import java.io.Serializable;
+import java.util.Map;
 
 //For serialization reasons, this class is separate from the Node class
 public class NodeStableStorage implements Serializable
 {
-	public int minPsn;
-	public Proposal maxAcceptedProposal; 
+	public Map<Integer, Integer> minPsns;
+	public Map<Integer, Proposal> maxAcceptedProposals;
+
 }
