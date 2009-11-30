@@ -4,17 +4,19 @@ import java.util.*;
 
 public class Node
 {
-	private static final boolean isDebugging = true;
+	// timeout per connection
 	private static final int socketTimeout = 5000;
 	
 	// if a proposer doesn't hear back from a majority of acceptors, try again
 	private static final int proposeTimeout = 10000;
 	
-	// this is a range so that all heartbeats won't happen simultaneously
+	// this is a range so that all heartbeats usually won't happen simultaneously
 	private static final int heartbeatDelayMin = 1000;
 	private static final int heartbeatDelayMax = 2000;
 	
 	private static Integer nextPort = 37100;
+	
+	// Node Data
 	private Set<NodeLocationData> nodes = new HashSet<NodeLocationData>();
 	private NodeLocationData locationData;
 	private NodeListener listener;
@@ -51,6 +53,31 @@ public class Node
 	public void setNodeList(Set<NodeLocationData> s)
 	{
 		this.nodes = s;
+	}
+	
+	public void becomeLeader()
+	{
+		locationData.becomeLeader();
+		for(NodeLocationData node : nodes)
+			node.becomeNonLeader();
+	}
+	
+	private void electNewLeader()
+	{
+		int newNum = -1;
+		
+		// find old leader and calculate new leader num
+		for(NodeLocationData node : nodes)
+			if(node.isLeader())
+			{
+				newNum = (node.getNum() + 1) % nodes.size();
+				break;
+			}
+		
+		NewLeaderNotificationMessage newLeaderNotification = new NewLeaderNotificationMessage(newNum);
+		newLeaderNotification.setSender(locationData);
+		broadcast(newLeaderNotification);
+		writeDebug("Electing new leader: " + newNum);
 	}
 	
 	public synchronized void start()
@@ -122,8 +149,14 @@ public class Node
 		}
 		catch(SocketTimeoutException e)
 		{
-			// XXX: Implement what to do when Node crash detected.
-			// if node was leader, elect new one, else, no nothing
+			writeDebug("Detected crash from " + node.getNum(), true);
+			
+			// if was leader, elect a new one and try THIS retransmission again, else, do nothing
+			if(node.isLeader())
+			{
+				electNewLeader();
+				unicast(node, m);
+			}
 		}
 		catch(IOException e)
 		{
@@ -147,7 +180,8 @@ public class Node
 	{
 		if(m instanceof HeartbeatMessage)
 		{
-			writeDebug("Got Heartbeat from " + m.getSender());
+			// too much spam
+			//writeDebug("Got Heartbeat from " + m.getSender());
 		}
 		else if(m instanceof PrepareRequestMessage) // Acceptor
 		{
@@ -245,6 +279,18 @@ public class Node
 				updateStableStorage();
 			}
 		}
+		else if(m instanceof NewLeaderNotificationMessage) // Leader Election
+		{
+			NewLeaderNotificationMessage newLeaderNotification = (NewLeaderNotificationMessage)m;
+			int newNum = newLeaderNotification.getNum();
+			
+			// find new leader, make others non-leaders
+			for(NodeLocationData node : nodes)
+				if(node.getNum() == newNum)
+					node.becomeLeader();
+				else
+					node.becomeNonLeader();
+		}
 		else
 			writeDebug("Unknown Message recieved", true);
 	}
@@ -252,6 +298,11 @@ public class Node
 	public NodeLocationData getLocationData()
 	{
 		return locationData;
+	}
+	
+	public boolean isLeader()
+	{
+		return locationData.isLeader();
 	}
 		
 	public String toString()
@@ -266,7 +317,7 @@ public class Node
 	
 	private synchronized void writeDebug(String s, boolean isError)
 	{
-		if(!isDebugging)
+		if(!Main.isDebugging)
 			return;
 			
 		PrintStream out = isError ? System.err : System.out;
