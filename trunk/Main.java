@@ -64,6 +64,7 @@ public class Main
 				m += "\n\tinit <num> - creates <num> nodes";
 				m += "\n\tstart [<num>] - starts the node with the number <num>. If no number specified, all will start";
 				m += "\n\tstop [<num>] - stops (or 'crashes') the node with the number <num>. If no number specified, all will stop";
+				m += "\n\tprint [<num>] - prints the learned values from the node with the number <num>. If no number specified, all will printed";
 				m += "\n\tclear - clears all nodes' stable storage";
 				m += "\n\tpropose <value> - the current leader will propose <value>";
 				m += "\n\texit - stops all nodes and exits";
@@ -170,11 +171,15 @@ public class Main
 			if(node.getLocationData().getNum() == n)
 			{
 
-				ArrayList<String> list = node.getValues();
+				Map<Integer, String> values = node.getValues();
 				
 				String m = "List of values learned by " + node.getLocationData().getNum() + ": ";
-				for(String s : list)
-					m += "\n\t" + s;					
+				Iterator<Integer> iter = values.keySet().iterator();
+				while(iter.hasNext())
+				{
+					int i = iter.next();
+					m += "\n\t" + i + ": " + values.get(i);
+				}
 
 				writeDebug("\n" + m + "\n");				
 				break;
