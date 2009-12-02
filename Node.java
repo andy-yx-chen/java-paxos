@@ -17,7 +17,7 @@ public class Node
 	private static Integer nextPort = 37100;
 	
 	// Node Data
-	private Set<NodeLocationData> nodes = new HashSet<NodeLocationData>();
+	private Set<NodeLocationData> nodes;
 	private NodeLocationData locationData;
 	private NodeListener listener;
 	private NodeHeartbeat heartbeat;
@@ -34,9 +34,8 @@ public class Node
 	private Map<Integer, Proposal> maxAcceptedProposals;
 	
 	// Learner Variables
-	private int numAcceptNotifications;
-	private boolean hasLearned;
-	private ArrayList<String> chosenValues = new ArrayList<String>();
+	private Map<Integer, Integer> numAcceptNotifications;
+	private Map<Integer, String> chosenValues;
 	
 	public Node(String host, int port, int psnSeed)
 	{
@@ -44,10 +43,13 @@ public class Node
 		this.currentCsn = 0;
 		this.locationData = new NodeLocationData(host, port, psnSeed);
 		this.numAcceptRequests = new HashMap<Integer, Integer>();
+		this.numAcceptNotifications = new HashMap<Integer, Integer>();
 		this.proposals = new HashMap<Integer, Proposal>();
 		this.reProposers = new HashMap<Integer, NodeReProposer>();
 		this.minPsns = new HashMap<Integer, Integer>();
 		this.maxAcceptedProposals = new HashMap<Integer, Proposal>();
+		this.chosenValues = new HashMap<Integer, String>();
+		this.nodes = new HashSet<NodeLocationData>();
 	}
 	
 	public Node(int psnSeed)
@@ -85,7 +87,7 @@ public class Node
 		writeDebug("Electing new leader: " + newNum);
 	}
 	
-	public synchronized ArrayList<String> getValues()
+	public synchronized Map<Integer, String> getValues()
 	{
 		return chosenValues;
 	}
@@ -286,22 +288,29 @@ public class Node
 		{
 			AcceptNotificationMessage acceptNotification = (AcceptNotificationMessage)m;
 			Proposal acceptedProposal = acceptNotification.getProposal();
+			int csn = acceptedProposal.getCsn();
 			
 			writeDebug("Got Accept Notification from " + acceptNotification.getSender() + ": " + (acceptedProposal == null ? "None" : acceptedProposal.toString()));
 
-			if(hasLearned) // ignore if already heard from a majority
+			// ignore if already learned
+			if(chosenValues.get(csn) != null)
 				return;
 			
-			numAcceptNotifications++;
-			if(numAcceptNotifications > (nodes.size() / 2)) // has heard from majority?
+			if(numAcceptNotifications.get(csn) == null)
+				numAcceptNotifications.put(csn, 0);
+			
+			int n = numAcceptNotifications.get(csn);
+			n++;
+			if(n > (nodes.size() / 2)) // has heard from majority?
 			{
-				hasLearned = true;
-				
-				chosenValues.set(acceptedProposal.getCsn(), acceptedProposal.getValue());
+				numAcceptNotifications.remove(csn);
+				chosenValues.put(csn, acceptedProposal.getValue());
 				writeDebug("Learned: " + acceptedProposal.getCsn() + ", " + acceptedProposal.getValue());
 				
 				updateStableStorage();
 			}
+			else
+				numAcceptNotifications.put(csn, n);
 		}
 		else if(m instanceof NewLeaderNotificationMessage) // Leader Election
 		{
