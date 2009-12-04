@@ -21,6 +21,7 @@ public class Node
 	private NodeLocationData locationData;
 	private NodeListener listener;
 	private NodeHeartbeat heartbeat;
+	private Map<Integer, NodeHeartbeatListener> heartbeatListeners;
 	private boolean isRunning;
 	
 	// Proposer Variables
@@ -88,23 +89,19 @@ public class Node
 	
 	private void electNewLeader()
 	{
-		writeDebug("rawr");
 		if(!isRunning)
 			return;
 		int newNum = -1;
 		
 		// find old leader and calculate new leader num
-		writeDebug(newNum+"");
 		for(NodeLocationData node : nodes)
 			if(node.isLeader())
 			{
 				newNum = (node.getNum() + 1) % nodes.size();
 				break;
 			}
-		writeDebug(newNum+"");
 		
 		NewLeaderNotificationMessage newLeaderNotification = new NewLeaderNotificationMessage(newNum);
-		newLeaderNotification.setSender(locationData);
 		broadcast(newLeaderNotification);
 		writeDebug("Electing new leader: " + newNum);
 	}
@@ -124,6 +121,14 @@ public class Node
 		heartbeat = new NodeHeartbeat();
 		heartbeat.start();
 		
+		heartbeatListeners = new HashMap<Integer, NodeHeartbeatListener>();
+		for(NodeLocationData node : nodes)
+		{
+			NodeHeartbeatListener x = new NodeHeartbeatListener(node);
+			x.start();
+			heartbeatListeners.put(node.getNum(), x);
+		}
+		
 		isRunning = true;
 		
 		writeDebug("Started");
@@ -138,6 +143,14 @@ public class Node
 		if(heartbeat != null)
 			heartbeat.kill();
 		heartbeat = null;
+		
+		if(heartbeatListeners != null)
+		{
+			for(NodeHeartbeatListener heartbeatListener : heartbeatListeners.values())
+				heartbeatListener.kill();
+			heartbeatListeners.clear();
+		}
+		heartbeatListeners = null;
 		
 		isRunning = false;
 
@@ -245,8 +258,13 @@ public class Node
 
 		if(m instanceof HeartbeatMessage)
 		{
+			if(m.getSender() == this.locationData)
+				return;
+			
 			// too much spam
 			//writeDebug("Got Heartbeat from " + m.getSender());
+			
+			heartbeatListeners.get(m.getSender().getNum()).resetTimeout();
 		}
 		else if(m instanceof PrepareRequestMessage) // Acceptor
 		{
@@ -301,7 +319,6 @@ public class Node
 				if(reProposers.containsKey(csn))
 					reProposers.remove(csn).kill();
 				AcceptRequestMessage acceptRequest = new AcceptRequestMessage(proposal);
-				acceptRequest.setSender(locationData);
 				broadcast(acceptRequest);
 			}
 			else
@@ -327,7 +344,6 @@ public class Node
 			
 			// Notify Learners
 			AcceptNotificationMessage acceptNotification = new AcceptNotificationMessage(requestedProposal);
-			acceptNotification.setSender(locationData);
 			broadcast(acceptNotification);
 			
 			updateStableStorage();
@@ -364,6 +380,8 @@ public class Node
 		{
 			NewLeaderNotificationMessage newLeaderNotification = (NewLeaderNotificationMessage)m;
 			int newNum = newLeaderNotification.getNum();
+
+			writeDebug("Got New Leader Notification from " + newLeaderNotification.getSender() + ": "+newNum);
 			
 			// find new leader, make others non-leaders
 			for(NodeLocationData node : nodes)
@@ -506,6 +524,48 @@ public class Node
 					broadcast(new HeartbeatMessage());
 					lastHeartbeat = System.currentTimeMillis();
 					heartbeatDelay = rand.nextInt(heartbeatDelayMax - heartbeatDelayMin) + heartbeatDelayMin;
+				}
+				yield(); // so the while loop doesn't spin too much
+			}
+		}
+		
+		public void kill()
+		{
+			isRunning = false;
+		}
+	}
+
+	private class NodeHeartbeatListener extends Thread
+	{
+		private boolean isRunning;
+		private long lastHeartbeat;
+		private NodeLocationData node;
+		
+		public NodeHeartbeatListener(NodeLocationData node)
+		{
+			this.isRunning = true;
+			this.lastHeartbeat = System.currentTimeMillis();
+			this.node = node;
+		}
+		
+		public void resetTimeout()
+		{
+			lastHeartbeat = System.currentTimeMillis();
+		}
+
+		public void run()
+		{
+			while(isRunning)
+			{
+				if(socketTimeout < System.currentTimeMillis() - lastHeartbeat)
+				{
+					writeDebug("Detected crash from " + node.getNum() + " (heartbeat)", true);
+					
+					// if was leader, elect a new one
+					if(node.isLeader())
+						electNewLeader();
+
+					lastHeartbeat = System.currentTimeMillis();
 				}
 				yield(); // so the while loop doesn't spin too much
 			}
