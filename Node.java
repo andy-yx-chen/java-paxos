@@ -124,6 +124,8 @@ public class Node
 		heartbeatListeners = new HashMap<Integer, NodeHeartbeatListener>();
 		for(NodeLocationData node : nodes)
 		{
+			if(node == locationData)
+				continue;
 			NodeHeartbeatListener x = new NodeHeartbeatListener(node);
 			x.start();
 			heartbeatListeners.put(node.getNum(), x);
@@ -159,6 +161,10 @@ public class Node
 	
 	public void propose(String value)
 	{
+		// testing purposes
+		if(Main.slotSkippingFlag)
+			currentCsn++;
+
 		propose(value, currentCsn++);
 	}
 	
