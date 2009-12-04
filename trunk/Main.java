@@ -10,6 +10,13 @@ public class Main
 	private static ArrayList<String> proposeBuffer;
 	private static boolean isRunning;
 	
+	// Test case variables
+	private static final int testTime = 50;
+	public static boolean leaderFailureFlag = false;
+	public static boolean casadingLeaderFailureFlag = false;
+	public static boolean partialQuorumGatheringFlag = false;
+	public static boolean slotSkippingFlag = false;
+	
 	public static void main(String[] args) throws IOException
 	{
 		writeDebug("Type 'help' for a list of commands");
@@ -55,6 +62,28 @@ public class Main
 					print(Integer.parseInt(arg));
 			}
 			
+			else if(cmd.equalsIgnoreCase("test"))
+			{
+				if(arg == null)
+					writeDebug("You must specify a test case. Type 'help' for a list of commands and allowed values.", true);
+				else
+				{
+					if(arg.equalsIgnoreCase("leaderFail"))
+						testLeaderFail();
+					else if(arg.equalsIgnoreCase("cascadingLeaderFail"))
+						testCascadingLeaderFail();
+					else if(arg.equalsIgnoreCase("simultaneousFail"))
+						testSimultaneousFail();
+					else if(arg.equalsIgnoreCase("partialQuorumGathering"))
+						testPartialQuorumGathering();
+					else if(arg.equalsIgnoreCase("slotSkipping"))
+						testSlotSkipping();
+					else
+						writeDebug("Unrecognized test case. Type 'help' for a list of commands and allowed values.", true);
+				}
+			}
+
+			
 			else if(cmd.equalsIgnoreCase("propose"))
 				if(isRunning)
 					propose(arg);
@@ -74,6 +103,7 @@ public class Main
 				m += "\n\tprint [<num>] - prints the learned values from the node with the number <num>. If no number specified, all will printed";
 				m += "\n\tclear - clears all nodes' stable storage";
 				m += "\n\tpropose <value> - the current leader will propose <value>";
+				m += "\n\ttest <value> - tests against a particular condition. Allowed values are 'leaderFail', 'cascadingLeaderFail', 'simultaneousFail', 'partialQuorumGathering', and 'slotSkipping'.";
 				m += "\n\texit - stops all nodes and exits";
 				m += "\n\thelp - displays this list";
 				writeDebug("\n" + m + "\n");
@@ -203,6 +233,52 @@ public class Main
 				writeDebug("\n" + m + "\n");				
 				break;
 			}
+	}
+	
+	private static void testLeaderFail()
+	{
+		new Thread()
+		{
+			public void run()
+			{
+				// don't start timer until it's running
+				while(!Main.isRunning)
+					yield(); // so the while loop doesn't spin too much
+				
+				// fail timer
+				long expireTime = System.currentTimeMillis() + testTime;
+				boolean isRunning = true;
+				while(isRunning)
+				{
+					if(expireTime < System.currentTimeMillis())
+					{
+						Main.stop(0);
+						isRunning = false;
+					}
+					yield(); // so the while loop doesn't spin too much
+				}
+			}
+		}.start();
+	}
+	
+	private static void testCascadingLeaderFail()
+	{
+		// XXX: Implement
+	}
+	
+	private static void testSimultaneousFail()
+	{
+		// XXX: Implement
+	}
+	
+	private static void testPartialQuorumGathering()
+	{
+		// XXX: Implement
+	}
+	
+	private static void testSlotSkipping()
+	{
+		// XXX: Implement
 	}
 	
 	private static void exit()
