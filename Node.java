@@ -21,6 +21,7 @@ public class Node
 	private NodeLocationData locationData;
 	private NodeListener listener;
 	private NodeHeartbeat heartbeat;
+	private boolean isRunning;
 	
 	// Proposer Variables
 	private int currentCsn;
@@ -50,6 +51,7 @@ public class Node
 		this.maxAcceptedProposals = new HashMap<Integer, Proposal>();
 		this.chosenValues = new HashMap<Integer, String>();
 		this.nodes = new HashSet<NodeLocationData>();
+		this.isRunning = false;
 	}
 	
 	public Node(int psnSeed)
@@ -67,19 +69,39 @@ public class Node
 		locationData.becomeLeader();
 		for(NodeLocationData node : nodes)
 			node.becomeNonLeader();
+		
+		// fill skipped slots
+		int n = 0;
+		int m = 0;
+		ArrayList<Integer> proposeBuffer = new ArrayList<Integer>();
+		while(m < chosenValues.size())
+		{
+			if(chosenValues.containsKey(n))
+				m++;
+			else
+				proposeBuffer.add(n);
+			n++;
+		}
+		for(int i = 0; i < proposeBuffer.size(); i++)
+			propose("NOOP", proposeBuffer.get(i));
 	}
 	
 	private void electNewLeader()
 	{
+		writeDebug("rawr");
+		if(!isRunning)
+			return;
 		int newNum = -1;
 		
 		// find old leader and calculate new leader num
+		writeDebug(newNum+"");
 		for(NodeLocationData node : nodes)
 			if(node.isLeader())
 			{
 				newNum = (node.getNum() + 1) % nodes.size();
 				break;
 			}
+		writeDebug(newNum+"");
 		
 		NewLeaderNotificationMessage newLeaderNotification = new NewLeaderNotificationMessage(newNum);
 		newLeaderNotification.setSender(locationData);
@@ -102,6 +124,8 @@ public class Node
 		heartbeat = new NodeHeartbeat();
 		heartbeat.start();
 		
+		isRunning = true;
+		
 		writeDebug("Started");
 	}
 
@@ -114,6 +138,8 @@ public class Node
 		if(heartbeat != null)
 			heartbeat.kill();
 		heartbeat = null;
+		
+		isRunning = false;
 
 		writeDebug("Stopped");
 	}
@@ -125,6 +151,8 @@ public class Node
 	
 	public void propose(String value, int csn)
 	{
+		if(!isRunning)
+			return;
 		if(reProposers.containsKey(csn))
 			reProposers.remove(csn).kill();
 		numAcceptRequests.put(csn, 0);
@@ -137,6 +165,9 @@ public class Node
 	
 	private void broadcast(Message m)
 	{
+		if(!isRunning)
+			return;
+
 		m.setSender(locationData);
 		for(NodeLocationData node : nodes)
 		{
@@ -152,6 +183,9 @@ public class Node
 	
 	private void unicast(NodeLocationData node, Message m)
 	{
+		if(!isRunning)
+			return;
+
 		Socket socket = null;
 		ObjectOutputStream out = null;
 		m.setReciever(node);
@@ -164,9 +198,20 @@ public class Node
 			out.writeObject(m);
 			out.flush();
 		}
+		catch(ConnectException e)
+		{
+			writeDebug("Detected crash from " + node.getNum() + " (refused)", true);
+			
+			// if was leader, elect a new one and try THIS retransmission again, else, do nothing
+			if(node.isLeader())
+			{
+				electNewLeader();
+				unicast(node, m);
+			}
+		}
 		catch(SocketTimeoutException e)
 		{
-			writeDebug("Detected crash from " + node.getNum(), true);
+			writeDebug("Detected crash from " + node.getNum() + " (timeout)", true);
 			
 			// if was leader, elect a new one and try THIS retransmission again, else, do nothing
 			if(node.isLeader())
@@ -195,6 +240,9 @@ public class Node
 	
 	private synchronized void deliver(Message m)
 	{
+		if(!isRunning)
+			return;
+
 		if(m instanceof HeartbeatMessage)
 		{
 			// too much spam
