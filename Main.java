@@ -7,12 +7,16 @@ public class Main
 	
 	private static Set<Node> nodes;
 	private static Set<NodeLocationData> nodeLocations;
+	private static ArrayList<String> proposeBuffer;
+	private static boolean isRunning;
 	
 	public static void main(String[] args) throws IOException
 	{
 		writeDebug("Type 'help' for a list of commands");
 		
+		isRunning = false;
 		nodes = new HashSet<Node>();
+		proposeBuffer = new ArrayList<String>();
 		nodeLocations = new HashSet<NodeLocationData>();
 		BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 		while(true)
@@ -52,7 +56,10 @@ public class Main
 			}
 			
 			else if(cmd.equalsIgnoreCase("propose"))
-				propose(arg);
+				if(isRunning)
+					propose(arg);
+				else
+					bufferPropose(arg);
 			
 			else if(cmd.equalsIgnoreCase("exit"))
 				exit();
@@ -88,12 +95,23 @@ public class Main
 			}
 	}
 	
+	private static void bufferPropose(String s)
+	{
+		writeDebug("Buffering Proposal: " + s);
+		proposeBuffer.add(s);
+	}
+	
 	private static void startAll()
 	{
 		writeDebug("Starting all nodes...");
 
 		for(Node node : nodes)
 			node.start();
+		
+		while(proposeBuffer.size() > 0)
+			propose(proposeBuffer.remove(0));
+			
+		isRunning = true;
 		
 		writeDebug("All nodes started");
 	}
@@ -117,6 +135,7 @@ public class Main
 			node.stop();
 		nodes.clear();
 		nodeLocations.clear();
+		isRunning = false;
 
 		writeDebug("All nodes stopped");
 	}
