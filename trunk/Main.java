@@ -242,6 +242,7 @@ public class Main
 				// don't start timer until it's running
 				while(!Main.isRunning)
 					yield(); // so the while loop doesn't spin too much
+				writeDebug("Leader Fail Test Started");
 				
 				// fail timer
 				long expireTime = System.currentTimeMillis() + testTime;
@@ -257,7 +258,6 @@ public class Main
 				}
 			}
 		}.start();
-		writeDebug("Leader Fail Test Started");
 	}
 	
 	private static void testCascadingLeaderFail()
@@ -269,6 +269,7 @@ public class Main
 				// don't start timer until it's running
 				while(!Main.isRunning)
 					yield(); // so the while loop doesn't spin too much
+				writeDebug("Cascading Leader Fail Test Started");
 				
 				// fail timer
 				for(int i = 0; i < nodes.size(); i++)
@@ -288,7 +289,6 @@ public class Main
 				writeDebug("Cascading Leader Fail Test Complete");
 			}
 		}.start();
-		writeDebug("Cascading Leader Fail Test Started");
 	}
 	
 	private static void testSimultaneousFail()
@@ -300,6 +300,7 @@ public class Main
 				// don't start timer until it's running
 				while(!Main.isRunning)
 					yield(); // so the while loop doesn't spin too much
+				writeDebug("Simultaneous Fail Test Started");
 				
 				// fail timer
 				long expireTime = System.currentTimeMillis() + testTime;
@@ -316,7 +317,6 @@ public class Main
 				}
 			}
 		}.start();
-		writeDebug("Simultaneous Fail Test Started");
 	}
 	
 	private static void testPartialQuorumGathering()
