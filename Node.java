@@ -5,7 +5,8 @@ import java.util.*;
 public class Node
 {
 	// timeout per connection
-	private static final int socketTimeout = 5000;
+	private static final int socketTimeout = 1000;
+	private static final int heartbeatTimeout = 5000;
 	
 	// if a proposer doesn't hear back from a majority of acceptors, try again
 	private static final int proposeTimeout = 10000;
@@ -67,6 +68,7 @@ public class Node
 	
 	public void becomeLeader()
 	{
+		writeDebug("I'm Leader");
 		locationData.becomeLeader();
 		for(NodeLocationData node : nodes)
 			node.becomeNonLeader();
@@ -222,22 +224,16 @@ public class Node
 			writeDebug("Detected crash from " + node.getNum() + " (refused)", true);
 			
 			// if was leader, elect a new one and try THIS retransmission again, else, do nothing
-			if(node.isLeader())
-			{
+			if(node.isLeader() && !(m instanceof NewLeaderNotificationMessage))
 				electNewLeader();
-				unicast(node, m);
-			}
 		}
 		catch(SocketTimeoutException e)
 		{
 			writeDebug("Detected crash from " + node.getNum() + " (timeout)", true);
 			
 			// if was leader, elect a new one and try THIS retransmission again, else, do nothing
-			if(node.isLeader())
-			{
+			if(node.isLeader() && !(m instanceof NewLeaderNotificationMessage))
 				electNewLeader();
-				unicast(node, m);
-			}
 		}
 		catch(IOException e)
 		{
@@ -278,6 +274,9 @@ public class Node
 			int csn = prepareRequest.getCsn();
 			int psn = prepareRequest.getPsn();
 			
+			if(currentCsn <= csn)
+				currentCsn = csn + 1;
+			
 			writeDebug("Got Prepare Request from " + prepareRequest.getSender() + ": (" + csn + ", "+ psn + ")");
 
 			// new minPsn
@@ -298,6 +297,9 @@ public class Node
 			int csn = prepareResponse.getCsn();
 			int minPsn = prepareResponse.getMinPsn();
 			Proposal proposal = proposals.get(csn);
+			
+			if(currentCsn <= csn)
+				currentCsn = csn + 1;
 			
 			writeDebug("Got Prepare Response from " + prepareResponse.getSender() + ": " + csn + ", " + minPsn + ", " + (acceptedProposal == null ? "None" : acceptedProposal.toString()));
 
@@ -336,6 +338,9 @@ public class Node
 			Proposal requestedProposal = acceptRequest.getProposal();
 			int csn = requestedProposal.getCsn();
 			int psn = requestedProposal.getPsn();
+			
+			if(currentCsn <= csn)
+				currentCsn = csn + 1;
 
 			writeDebug("Got Accept Request from " + acceptRequest.getSender() + ": " + requestedProposal.toString());
 			
@@ -359,6 +364,9 @@ public class Node
 			AcceptNotificationMessage acceptNotification = (AcceptNotificationMessage)m;
 			Proposal acceptedProposal = acceptNotification.getProposal();
 			int csn = acceptedProposal.getCsn();
+			
+			if(currentCsn <= csn)
+				currentCsn = csn + 1;
 			
 			writeDebug("Got Accept Notification from " + acceptNotification.getSender() + ": " + (acceptedProposal == null ? "None" : acceptedProposal.toString()));
 
@@ -388,6 +396,10 @@ public class Node
 			int newNum = newLeaderNotification.getNum();
 
 			writeDebug("Got New Leader Notification from " + newLeaderNotification.getSender() + ": "+newNum);
+			
+			// am i new leader?
+			if(locationData.getNum() == newNum)
+				becomeLeader();
 			
 			// find new leader, make others non-leaders
 			for(NodeLocationData node : nodes)
@@ -563,7 +575,7 @@ public class Node
 		{
 			while(isRunning)
 			{
-				if(socketTimeout < System.currentTimeMillis() - lastHeartbeat)
+				if(heartbeatTimeout < System.currentTimeMillis() - lastHeartbeat)
 				{
 					writeDebug("Detected crash from " + node.getNum() + " (heartbeat)", true);
 					
@@ -603,7 +615,7 @@ public class Node
 		
 		public void run()
 		{
-			Socket socket;
+			Socket socket = null;
 			ObjectInputStream in;
 			while(isRunning)
 			{
@@ -616,12 +628,28 @@ public class Node
 				catch(IOException e)
 				{
 					writeDebug("IOException while trying to accept connection!", true);
+					e.printStackTrace();
 				}
 				catch(ClassNotFoundException e)
 				{
 					writeDebug("ClassNotFoundException while trying to read Object!", true);
 				}
+				finally
+				{
+					try
+					{
+						if(socket != null)
+							socket.close();
+					}
+					catch(Exception e){}
+				}
 			}
+			try
+			{
+				if(serverSocket != null)
+					serverSocket.close();
+			}
+			catch(Exception e){}
 		}
 		
 		public void kill()
