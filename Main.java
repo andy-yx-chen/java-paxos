@@ -12,7 +12,6 @@ public class Main
 	
 	// Test case variables
 	private static final int testTime = 20;
-	public static boolean partialQuorumGatheringFlag = false;
 	public static boolean slotSkippingFlag = false;
 	
 	public static void main(String[] args) throws IOException
@@ -72,8 +71,6 @@ public class Main
 						testCascadingLeaderFail();
 					else if(arg.equalsIgnoreCase("simultaneousFail"))
 						testSimultaneousFail();
-					else if(arg.equalsIgnoreCase("partialQuorumGathering"))
-						testPartialQuorumGathering();
 					else if(arg.equalsIgnoreCase("slotSkipping"))
 						testSlotSkipping();
 					else
@@ -101,7 +98,7 @@ public class Main
 				m += "\n\tprint [<num>] - prints the learned values from the node with the number <num>. If no number specified, all will printed";
 				m += "\n\tclear - clears all nodes' stable storage";
 				m += "\n\tpropose <value> - the current leader will propose <value>";
-				m += "\n\ttest <value> - tests against a particular condition. Allowed values are 'leaderFail', 'cascadingLeaderFail', 'simultaneousFail', 'partialQuorumGathering', and 'slotSkipping'.";
+				m += "\n\ttest <value> - tests against a particular condition. Allowed values are 'leaderFail', 'cascadingLeaderFail', 'simultaneousFail', and 'slotSkipping'.";
 				m += "\n\texit - stops all nodes and exits";
 				m += "\n\thelp - displays this list";
 				writeDebug("\n" + m + "\n");
@@ -317,11 +314,6 @@ public class Main
 				}
 			}
 		}.start();
-	}
-	
-	private static void testPartialQuorumGathering()
-	{
-		// XXX: Implement
 	}
 	
 	private static void testSlotSkipping()
